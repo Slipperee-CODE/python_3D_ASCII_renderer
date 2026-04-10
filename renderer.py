@@ -9,10 +9,9 @@ class Vector:
 
         Vector.add = self.create_operation_func(add)
         Vector.subtract = self.create_operation_func(sub)
-        
         Vector.vector_multiply = self.create_operation_func(mul)
-        Vector.scalar_multiply = lambda f, c: Vector.vector_multiply(f, Vector([c for _ in range(len(f))]))
 
+        Vector.scalar_multiply = lambda f, c: Vector.vector_multiply(f, Vector([c for _ in range(len(f))]))
         Vector.dot_product = lambda f, g: sum(Vector.vector_multiply(f, g))
         Vector.length = lambda f: sqrt(Vector.dot_product(f,f))
         Vector.normalize = lambda f: Vector.scalar_multiply(f, 1 / Vector.length(f))
@@ -35,19 +34,31 @@ class Vector:
     def create_operation_func(operation):
         def operation_func(f, g):
             Vector.checkThatLengthsMatch(f, g)
-            h = [operation(f.v[i],g.v[i]) for i in range(len(f))] 
+            h:list[float] = [operation(f.v[i],g.v[i]) for i in range(len(f))] 
             return Vector(h)
         return operation_func
     
-class RenderablePlane():
-    def __init__(self, c:Vector, n:Vector, width:float, length:float):
+class RenderableManager():
+    renderables:list["Renderable"] = []
+
+    def __repr__(self):
+        return str(self.renderables)
+
+class Renderable():
+    def __init__(self):
+        RenderableManager.renderables.append(self)
+
+class RenderableDisk(Renderable):
+    def __init__(self, c:Vector, n:Vector, radius:float):
+        super().__init__()
         self.c = c
         self.n = Vector.normalize(n)
-        self.width = width
-        self.length = length 
+        self.radius = radius
 
     def collides(self, p:Vector, tolerance=0):
-        return Vector.dot_product(self.n, Vector.subtract(self.c, p)) <= tolerance
+        isWithinPlaneOfDisk:bool = Vector.dot_product(self.n, Vector.subtract(self.c, p)) <= tolerance
+        isWithinDiskRadius:bool = Vector.length(Vector.subtract(self.c, p)) <= self.radius
+        return isWithinPlaneOfDisk and isWithinDiskRadius
 
 class Ray():
     def __init__(self, start_pos:Vector, direction:Vector, deltaAdvance:float = 0.1):
@@ -59,8 +70,15 @@ class Ray():
     def advance(self) -> None:
         # curr_pos += direction * deltaAdvance 
         # check for collision somehow and update hasCollided accordingly
+        # loop through all existing objects and calls collides(ray_position, tolerance=smth) for each ray
+        # ^ change hasCollided if needed 
         ...
 
     def collided(self) -> bool:
         return self.hasCollided
-        
+    
+a = RenderableDisk(Vector([1, 1, 1]), Vector([1, 1, 1]), 1)
+b = RenderableDisk(Vector([1, 1, 1]), Vector([1, 1, 1]), 1)
+c = RenderableDisk(Vector([1, 1, 1]), Vector([1, 1, 1]), 1)
+
+print(RenderableManager.renderables)
