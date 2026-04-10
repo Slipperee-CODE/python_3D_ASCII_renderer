@@ -60,6 +60,28 @@ class RenderableDisk(Renderable):
         isWithinDiskRadius:bool = Vector.length(Vector.subtract(self.c, p)) <= self.radius
         return isWithinPlaneOfDisk and isWithinDiskRadius
 
+class Camera():
+    def __init__(self, c, n, vW, vH, r, rMD):
+        self.c = c # camera position
+        self.n = n # camera direction
+        self.vW = vW # viewport width
+        self.vH = vH # viewport height
+        self.r = r # resolution, # of rays cast is proportional to resolution
+        self.rMD = rMD # raycast max depth
+
+    def getOrthogonalBasisForCameraSubspace(self) -> tuple[Vector, Vector]:
+        return (Vector([]), Vector([]))
+    
+    def castRays(self): # this function should do a whole lot including doing the full raycast (including checking collisions until all rays fully cast)
+        # for loop through -r/2 * basis vector one to r/2 * basis vector one
+            # for loop through r/2 * basis vector two to r/2 * basis vector two
+                # add these amounts to camera position and casts rays from there
+
+        # a lot more goes here lol
+
+        # while need to process the results of the raycast here to put on screen or somewhere else (probably somewhere else)
+        ...
+
 class Ray():
     def __init__(self, start_pos:Vector, direction:Vector, deltaAdvance:float = 0.1):
         self.curr_pos = start_pos
