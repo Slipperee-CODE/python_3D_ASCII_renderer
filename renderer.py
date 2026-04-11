@@ -2,7 +2,11 @@ from operator import add
 from operator import sub
 from operator import mul
 from math import sqrt
+from math import cos
+from math import sin
+from math import pi
 from typing import Callable
+from time import sleep
 
 def setup_vector_operations(cls:type) -> type:
     def checkThatLengthsMatch(operation:Callable, f, g): 
@@ -24,6 +28,8 @@ def setup_vector_operations(cls:type) -> type:
     cls.dot_product = lambda f, g: sum(cls.vector_multiply(f, g))
     cls.length = lambda f: sqrt(cls.dot_product(f,f))
     cls.normalize = lambda f: cls.scalar_multiply(1 / cls.length(f), f)
+
+    cls.cross_product = lambda f, g: Vector((f[1]*g[2] - f[2]*g[1], f[2]*g[0] - f[0]*g[2], f[0]*g[1] - f[1]*g[0]))
 
     return cls
 
@@ -54,12 +60,25 @@ class RenderableDisk(Renderable):
         self.n = Vector.normalize(n)
         self.radius = radius
 
+    def rotate(self, degrees, axisOfRotation:Vector):
+        radians = degrees*pi/180
+        axisOfRotation = Vector.normalize(axisOfRotation)
+
+        # This just uses a formula that exists from rotating a vector around an arbitrary axis - Cai
+        self.n = Vector.add(
+            Vector.add(
+                Vector.scalar_multiply(cos(radians), self.n), 
+                Vector.scalar_multiply(sin(radians), Vector.cross_product(axisOfRotation, self.n))
+            ),
+            Vector.scalar_multiply((1-cos(radians))*Vector.dot_product(self.n, axisOfRotation),axisOfRotation)
+        )
+        
     def collides(self, p:Vector, tolerance:float=0) -> bool:
         isWithinPlaneOfDisk:bool = Vector.dot_product(self.n, Vector.subtract(self.c, p)) <= tolerance
         isWithinDiskRadius:bool = Vector.length(Vector.subtract(self.c, p)) <= self.radius
         return isWithinPlaneOfDisk and isWithinDiskRadius
 
-class Ray():
+class Ray:
     def __init__(self, startPos:Vector, direction:Vector, deltaAdvance:float=0.1):
         self.startPos = startPos
         self.currPos = startPos
@@ -84,6 +103,9 @@ class Camera:
         self.rCT = rCT # ray collision tolerance
         self.rMD = rMD # raycast max depth
         self.dBM = dBM # one of this class' ascending brightness map strings, or a custom user-provided one
+
+    def moveCameraPosBy(self, d:Vector):
+        self.c = Vector.add(self.c, d)
 
     # assumes this Camera's direction in in R^3
     def getOrthonormalBasisForViewport(self) -> list[Vector]:
@@ -184,7 +206,17 @@ class Camera:
                 thisRow += f" {col} "
             print(thisRow)
 
-camera = Camera(Vector([0,0,0]), Vector([1,1,1]), 33, 0.25, 0.35, 4, Camera.simpleBrightnessMap)
-a = RenderableDisk(Vector([0, 0, 2]), Vector([0, 0, 1]), 4)
+if __name__ == "__main__":
+    camera = Camera(Vector([0,0,-5]), Vector([0,0,1]), 20, 0.1, 0.35, 3, Camera.simpleBrightnessMap)
+    a = RenderableDisk(Vector([0, 0, 2]), Vector([0, 0, 1]), 10)
 
-camera.drawFrame()
+    # while (True):
+    #     camera.drawFrame()
+    #     cameraDeltaPos = [float(s) for s in input("Provide 3 numbers to move around (space seperated): ").split(" ")]
+    #     camera.moveCameraPosBy(Vector(cameraDeltaPos))
+
+    while (True):
+        print("\n\n\n\n\n\n\n\n")
+        camera.drawFrame()
+        a.rotate(5, Vector([0, 1, 0]))
+        sleep(0.05)

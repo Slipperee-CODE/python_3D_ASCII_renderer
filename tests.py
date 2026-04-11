@@ -14,6 +14,11 @@ class TestVectorOperations:
         print(f"{Vector.normalize(u)=}")
         print(f"{Vector.length(Vector.normalize(u))=}")
 
+        if (len(u) == 3):
+            print(f"{Vector.cross_product(u, v)=}")
+            print(f"{Vector.cross_product(v, u)=}")
+            print(f"{Vector.dot_product(Vector.cross_product(u, v), u)=}")
+
     @staticmethod
     def testRandomVectors():
         print("Start of testRandomVectors")
