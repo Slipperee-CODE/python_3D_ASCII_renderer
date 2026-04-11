@@ -2,41 +2,38 @@ from operator import add
 from operator import sub
 from operator import mul
 from math import sqrt
+from typing import Callable
 
-class Vector:
-    def __init__(self, v:list[float]):
-        self.v = v
+def setup_vector_operations(cls:type) -> type:
+    def checkThatLengthsMatch(operation:Callable, f, g): 
+        if (len(f) != len(g)):
+            raise ValueError(f"{operation.__name__} cannot be performed on vectors {f} and {g} of len {len(f)} and {len(g)}")
 
-        Vector.add = self.create_operation_func(add)
-        Vector.subtract = self.create_operation_func(sub)
-        Vector.vector_multiply = self.create_operation_func(mul)
+    def create_operation_func(operation:Callable) -> Callable:
+        def operation_func(f, g):
+            checkThatLengthsMatch(operation, f, g)
+            h:list[float] = [operation(f[i],g[i]) for i in range(len(f))] 
+            return cls(h)
+        return operation_func
 
-        Vector.scalar_multiply = lambda f, c: Vector.vector_multiply(f, Vector([c for _ in range(len(f))]))
-        Vector.dot_product = lambda f, g: sum(Vector.vector_multiply(f, g))
-        Vector.length = lambda f: sqrt(Vector.dot_product(f,f))
-        Vector.normalize = lambda f: Vector.scalar_multiply(f, 1 / Vector.length(f))
+    cls.add = create_operation_func(add)
+    cls.subtract = create_operation_func(sub)
+    cls.vector_multiply = create_operation_func(mul)
 
-    def __iter__(self):
-        return iter(self.v)
+    cls.scalar_multiply = lambda c, f: cls.vector_multiply(f, cls([c for _ in range(len(f))]))
+    cls.dot_product = lambda f, g: sum(cls.vector_multiply(f, g))
+    cls.length = lambda f: sqrt(cls.dot_product(f,f))
+    cls.normalize = lambda f: cls.scalar_multiply(1 / cls.length(f), f)
 
-    def __len__(self):
-        return len(self.v)
+    return cls
+
+@setup_vector_operations
+class Vector(tuple[float]):
+    def __init__(self, v:tuple[float]):
+        self = v
 
     def __repr__(self):
-        return f"Vector({str(self.v)})"
-
-    @staticmethod 
-    def checkThatLengthsMatch(f, g): 
-        if (len(f) != len(g)):
-            raise ValueError(f"dot_product cannot be performed on vectors {f} and {g} of len {len(f)} and {len(g)}")
-    
-    @staticmethod
-    def create_operation_func(operation):
-        def operation_func(f, g):
-            Vector.checkThatLengthsMatch(f, g)
-            h:list[float] = [operation(f.v[i],g.v[i]) for i in range(len(f))] 
-            return Vector(h)
-        return operation_func
+        return f"Vector({[self[i] for i in range(len(self))]})"
     
 class RenderableManager():
     renderables:list["Renderable"] = []
@@ -48,6 +45,8 @@ class Renderable():
     def __init__(self):
         RenderableManager.renderables.append(self)
 
+    def collides(self, p:Vector, tolerance:float=0) -> bool: ...
+
 class RenderableDisk(Renderable):
     def __init__(self, c:Vector, n:Vector, radius:float):
         super().__init__()
@@ -55,52 +54,118 @@ class RenderableDisk(Renderable):
         self.n = Vector.normalize(n)
         self.radius = radius
 
-    def collides(self, p:Vector, tolerance=0):
+    def collides(self, p:Vector, tolerance:float=0) -> bool:
         isWithinPlaneOfDisk:bool = Vector.dot_product(self.n, Vector.subtract(self.c, p)) <= tolerance
         isWithinDiskRadius:bool = Vector.length(Vector.subtract(self.c, p)) <= self.radius
         return isWithinPlaneOfDisk and isWithinDiskRadius
 
-class Camera():
-    def __init__(self, c, n, vW, vH, r, rMD):
-        self.c = c # camera position
-        self.n = n # camera direction
-        self.vW = vW # viewport width
-        self.vH = vH # viewport height
-        self.r = r # resolution, # of rays cast is proportional to resolution
-        self.rMD = rMD # raycast max depth
-
-    def getOrthogonalBasisForCameraSubspace(self) -> tuple[Vector, Vector]:
-        return (Vector([]), Vector([]))
-    
-    def castRays(self): # this function should do a whole lot including doing the full raycast (including checking collisions until all rays fully cast)
-        # for loop through -r/2 * basis vector one to r/2 * basis vector one
-            # for loop through r/2 * basis vector two to r/2 * basis vector two
-                # add these amounts to camera position and casts rays from there
-
-        # a lot more goes here lol
-
-        # while need to process the results of the raycast here to put on screen or somewhere else (probably somewhere else)
-        ...
-
 class Ray():
-    def __init__(self, start_pos:Vector, direction:Vector, deltaAdvance:float = 0.1):
-        self.curr_pos = start_pos
+    def __init__(self, startPos:Vector, direction:Vector, deltaAdvance:float=0.1):
+        self.startPos = startPos
+        self.currPos = startPos
         self.direction = Vector.normalize(direction)
         self.deltaAdvance = deltaAdvance
-        self.hasCollided = False
 
-    def advance(self) -> None:
-        # curr_pos += direction * deltaAdvance 
-        # check for collision somehow and update hasCollided accordingly
-        # loop through all existing objects and calls collides(ray_position, tolerance=smth) for each ray
-        # ^ change hasCollided if needed 
-        ...
+    def length(self) -> float:
+        return Vector.length(Vector.subtract(self.startPos, self.currPos))
 
-    def collided(self) -> bool:
-        return self.hasCollided
+    def advance(self):
+        self.currPos = Vector.add(self.currPos, Vector.scalar_multiply(self.deltaAdvance, self.direction))
+
+class Camera:
+    detailedBrightnessMap = "@$B%8&WM#*oahkbdpqwmZO0QLCJUYXzcvunxrjft/\\|()1{}[]?-_+~i!lI;:,\"^`. "
+    simpleBrightnessMap = "@%#*+=-:."
+
+    def __init__(self, c:Vector, n:Vector, res: int, rDA:float, rCT:float, rMD:float, dBM:str):
+        self.c = c # camera position
+        self.n = n # camera direction
+        self.res = res # resolution, # of rays cast is proportional to resolution
+        self.rDA = rDA # ray deltaAdvance
+        self.rCT = rCT # ray collision tolerance
+        self.rMD = rMD # raycast max depth
+        self.dBM = dBM # one of this class' ascending brightness map strings, or a custom user-provided one
+
+    # assumes this Camera's direction in in R^3
+    def getOrthonormalBasisForViewport(self) -> list[Vector]:
+        basis:list[Vector] = [] 
+
+        # can generalize this to higher dimensions later
+        # finding 2 lin. indep. vectors in nullspace of [---n---], those lin. indep. vectors span (Span{n})^perp
+
+        print(f'{self.n=}')
+
+        for x2, x3 in ((0, self.n[0]), (self.n[0], 0)):
+            n0 = max(self.n[0], 0.0001) #temp solution to divide by 0 problems
+            x1 = -self.n[1]/n0 * x2 + -self.n[2]/n0 * x3
+            basis.append(Vector((x1, x2, x3)))
+
+        print(f'{basis=}')
+
+        #Performing Gram-Schmidt on the 2 lin. indep. basis vectors for the viewport's subspace found in the previous step
+        basis[1] = Vector.subtract(basis[1], 
+            Vector.scalar_multiply(Vector.dot_product(basis[1],basis[0]) / Vector.dot_product(basis[0], basis[0]), basis[0]))
+
+        basis[0] = Vector.normalize(basis[0])
+        basis[1] = Vector.normalize(basis[1])
+        return basis
+
+    # assumes rays are in R^3
+    def generateRays(self, oB:list[Vector]) -> list[Ray]:
+        rays:list[Ray] = []
+        for i in range(0, self.res):
+            for j in range(0, self.res):
+                rayOffsetV0 = (i - self.res/2) * oB[0] 
+                rayOffsetV1 = (j - self.res/2) * oB[1] 
+                rays.append(Ray(Vector.add(Vector.add(self.c, rayOffsetV0), rayOffsetV1), self.n, self.rDA))
+        return rays
+
+    def castRays(self, rays:list[Ray]):
+        while len(rays) > 0:
+            for i in range(len(rays)):
+                currRay = rays[i]
+
+                currRay.advance()
+
+                if currRay.length() >= self.rMD:
+                    rays.pop(i)
+                    continue
+
+                for renderable in RenderableManager.renderables:
+                    if renderable.collides(currRay.currPos, self.rCT):
+                        rays.pop(i)
+                        break
+
+    def renderFrame(self) -> list[list[str]]:
+        oB = self.getOrthonormalBasisForViewport()
+        rays = self.generateRays(oB)
+        self.castRays(rays[:]) # this function changes the ray objects themselves
+
+        # because of the particular order in which I am raycasting, I know that each ray is listed in top-bottom, left-right order
+        # therefore I can generate a frame using that knowledge (rather than any explicit projections) 
+
+        # this can be thought of as an implicit projection onto the viewport because of the following: 
+        # orthogonal decomposition theorem states that y = yhat + z where y is in V, yhat is in W, and z is in W perp
+        # in this case, we have y (the ray endPos) and z (ray endPos - ray startPos)
+        # endPos = yhat + (endPos - startPos) -> yhat = startPos 
+
+        frame = []
+        for i in range(self.res):
+            currLine:list[str] = []
+            for j in range(self.res):
+                # probably the single most devious line of the whole program, it does the following
+                # 1. Maps the current i and j into a single number representing the index of a specific ray in rays
+                # 2. Gets the length of that ray and divides it by rayMaxDepth (max ray length) to get a float from [0,1] 
+                # 3. Maps that float to an int between [0, len(self.aBM)]
+                # 4. Maps that int to an int between [-1, len(self.aBM)-1]
+                # 5. Maps that int to an int between [0, len(self.aBM)-1] 
+                # Step 5 is because super close things should be very light (earlier in aBM), not very dark (later in aBM)
+                currLine.append(self.dBM[max(0, ((int) (rays[i*self.res + j].length()/self.rMD*len(self.dBM)))-1)])
+        return frame
     
-a = RenderableDisk(Vector([1, 1, 1]), Vector([1, 1, 1]), 1)
-b = RenderableDisk(Vector([1, 1, 1]), Vector([1, 1, 1]), 1)
-c = RenderableDisk(Vector([1, 1, 1]), Vector([1, 1, 1]), 1)
+    def drawFrame(self):
+        print(self.renderFrame())
 
-print(RenderableManager.renderables)
+camera = Camera(Vector([0,0,0]), Vector([0,0,1]), 64, 0.1, 0.1, 30, Camera.simpleBrightnessMap)
+a = RenderableDisk(Vector([0, 0, 2]), Vector([0, 0, 1]), 1)
+
+camera.drawFrame()

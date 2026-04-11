@@ -8,7 +8,7 @@ class TestVectorOperations:
         print(f"{Vector.add(u, v)=}")
         print(f"{Vector.subtract(u, v)=}")
         print(f"{Vector.vector_multiply(u, v)=}")
-        print(f"{Vector.scalar_multiply(u, c)=}")
+        print(f"{Vector.scalar_multiply(c, u)=}")
         print(f"{Vector.dot_product(u, v)=}")
         print(f"{Vector.length(u)=}")
         print(f"{Vector.normalize(u)=}")
