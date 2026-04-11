@@ -92,14 +92,30 @@ class Camera:
         # can generalize this to higher dimensions later
         # finding 2 lin. indep. vectors in nullspace of [---n---], those lin. indep. vectors span (Span{n})^perp
 
-        print(f'{self.n=}')
+        # print(f'{self.n=}')
 
-        for x2, x3 in ((0, self.n[0]), (self.n[0], 0)):
-            n0 = max(self.n[0], 0.0001) #temp solution to divide by 0 problems
-            x1 = -self.n[1]/n0 * x2 + -self.n[2]/n0 * x3
-            basis.append(Vector((x1, x2, x3)))
+        indexesOfFreeVariables = []
+        indexOfPivot = 0
+        alreadyFoundPivot = False
+        for i in range(len(self.n)):
+            if self.n[i] == 0 or alreadyFoundPivot:
+                indexesOfFreeVariables.append(i)
 
-        print(f'{basis=}')
+            if self.n[i] != 0 and not alreadyFoundPivot:
+                alreadyFoundPivot = True
+                indexOfPivot = i
+
+        for x2, x3 in ((0, 1), (1, 0)):
+            n0 = self.n[indexOfPivot]
+            x1 = -self.n[indexesOfFreeVariables[0]]/n0 * x2 + -self.n[indexesOfFreeVariables[1]]/n0 * x3
+            
+            vL = [0, 0, 0]
+            vL[indexOfPivot] = x1
+            vL[indexesOfFreeVariables[0]] = x2
+            vL[indexesOfFreeVariables[1]] = x3
+            basis.append(Vector(vL))
+
+        # print(f'{basis=}')
 
         #Performing Gram-Schmidt on the 2 lin. indep. basis vectors for the viewport's subspace found in the previous step
         basis[1] = Vector.subtract(basis[1], 
@@ -114,25 +130,23 @@ class Camera:
         rays:list[Ray] = []
         for i in range(0, self.res):
             for j in range(0, self.res):
-                rayOffsetV0 = (i - self.res/2) * oB[0] 
-                rayOffsetV1 = (j - self.res/2) * oB[1] 
+                rayOffsetV0 = Vector.scalar_multiply((i - self.res/2), oB[0]) 
+                rayOffsetV1 = Vector.scalar_multiply((j - self.res/2), oB[1]) 
                 rays.append(Ray(Vector.add(Vector.add(self.c, rayOffsetV0), rayOffsetV1), self.n, self.rDA))
         return rays
 
     def castRays(self, rays:list[Ray]):
         while len(rays) > 0:
-            for i in range(len(rays)):
-                currRay = rays[i]
-
+            for currRay in rays[:]:
                 currRay.advance()
 
                 if currRay.length() >= self.rMD:
-                    rays.pop(i)
+                    rays.remove(currRay)
                     continue
 
                 for renderable in RenderableManager.renderables:
                     if renderable.collides(currRay.currPos, self.rCT):
-                        rays.pop(i)
+                        rays.remove(currRay)
                         break
 
     def renderFrame(self) -> list[list[str]]:
@@ -160,12 +174,17 @@ class Camera:
                 # 5. Maps that int to an int between [0, len(self.aBM)-1] 
                 # Step 5 is because super close things should be very light (earlier in aBM), not very dark (later in aBM)
                 currLine.append(self.dBM[max(0, ((int) (rays[i*self.res + j].length()/self.rMD*len(self.dBM)))-1)])
+            frame.append(currLine)
         return frame
     
     def drawFrame(self):
-        print(self.renderFrame())
+        for row in self.renderFrame():
+            thisRow = ""
+            for col in row:
+                thisRow += f" {col} "
+            print(thisRow)
 
-camera = Camera(Vector([0,0,0]), Vector([0,0,1]), 64, 0.1, 0.1, 30, Camera.simpleBrightnessMap)
-a = RenderableDisk(Vector([0, 0, 2]), Vector([0, 0, 1]), 1)
+camera = Camera(Vector([0,0,0]), Vector([1,1,1]), 33, 0.25, 0.35, 4, Camera.simpleBrightnessMap)
+a = RenderableDisk(Vector([0, 0, 2]), Vector([0, 0, 1]), 4)
 
 camera.drawFrame()
